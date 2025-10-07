@@ -4,19 +4,24 @@ from mysql.connector import Error
 
 app = Flask(__name__)
 
+db_user = None
+db_password = None
+db_port = None
+
 def conectar():
+    """Crea una conexión MySQL usando las credenciales del inicio de sesión."""
     try:
         return mysql.connector.connect(
-            user="root",
-            password="123456",
+            user=db_user,
+            password=db_password,
             host="localhost",
             database="gestioncarrera",
-            port="3307"
+            port=db_port
         )
     except Error as e:
         print(f"Error conectando a MySQL: {e}")
         return None
-
+    
 @app.route('/carreras/<int:idCarrera>', methods=['GET'])
 def obtener_carrera(idCarrera):
     conn = conectar()
@@ -164,5 +169,33 @@ def eliminar_carrera(idCarrera):
             cursor.close()
             conn.close()
 
+def login_mysql():
+    global db_user, db_password, db_port
+
+    print("\n" + "=" * 60)
+    print("CONFIGURACIÓN DE CONEXIÓN A MySQL")
+    print("=" * 60)
+
+    while True:
+        db_user = input("Usuario MySQL [root]: ").strip() or "root"
+        db_password = input("Contraseña MySQL [123456]: ").strip() or "123456"
+        db_port = input("Puerto MySQL [3307]: ").strip() or "3307"
+
+        print("\nVerificando conexión...\n")
+        conn = conectar()
+        if conn and conn.is_connected():
+            print("Conexión exitosa a MySQL.")
+            conn.close()
+            break
+        else:
+            print("No se pudo conectar. Verifica los datos e inténtalo nuevamente.\n")
+            retry = input("¿Intentar otra vez? (s/n): ").lower()
+            if retry != "s":
+                print("\nSaliendo del programa...\n")
+                exit()
+      
+
 if __name__ == '__main__':
+    login_mysql()
+    print("\nIniciando servidor Flask...\n")
     app.run(debug=True)
