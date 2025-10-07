@@ -177,9 +177,9 @@ def login_mysql():
     print("=" * 60)
 
     while True:
-        db_user = input("Usuario MySQL [root]: ").strip() or "root"
-        db_password = input("Contraseña MySQL [123456]: ").strip() or "123456"
-        db_port = input("Puerto MySQL [3307]: ").strip() or "3307"
+        db_user = input("Usuario MySQL: ").strip()
+        db_password = input("Contraseña MySQL: ").strip()
+        db_port = input("Puerto MySQL: ").strip()
 
         print("\nVerificando conexión...\n")
         conn = conectar()
