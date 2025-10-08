@@ -1,80 +1,42 @@
 from flask import Flask, jsonify, request
-import mysql.connector
-from mysql.connector import Error
+from carrera import Carrera
+from carrera_dao import CarreraDAO
 
 app = Flask(__name__)
+carrera_dao = None
 
-db_user = None
-db_password = None
-db_port = None
-
-def conectar():
-    """Crea una conexión MySQL usando las credenciales del inicio de sesión."""
-    try:
-        return mysql.connector.connect(
-            user=db_user,
-            password=db_password,
-            host="localhost",
-            database="gestioncarrera",
-            port=db_port
-        )
-    except Error as e:
-        print(f"Error conectando a MySQL: {e}")
-        return None
-    
 @app.route('/carreras/<int:idCarrera>', methods=['GET'])
 def obtener_carrera(idCarrera):
-    conn = conectar()
-    if not conn:
-        return jsonify({"error": "Error de conexión a la base de datos"}), 500
-    
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM carrera WHERE idCarrera = %s", (idCarrera,))
-        resultado = cursor.fetchone()
+        carrera = carrera_dao.obtener_por_id(idCarrera)
         
-        if resultado:
-            carrera = {
-                "idCarrera": resultado[0],
-                "nombrecarrera": resultado[1],
-                "duracion": resultado[2]
-            }
-            return jsonify(carrera), 200
+        if carrera:
+            return jsonify({
+                "idCarrera": carrera.get_id_carrera(),
+                "nombrecarrera": carrera.get_nombre_carrera(),
+                "duracion": carrera.get_duracion()
+            }), 200
         else:
             return jsonify({"mensaje": f"No se encontró carrera con ID {idCarrera}"}), 404
-    except Error as e:
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        if conn.is_connected():
-            cursor.close()
-            conn.close()
 
 @app.route('/carreras', methods=['GET'])
 def obtener_todas_las_carreras():
-    conn = conectar()
-    if not conn:
-        return jsonify({"error": "Error de conexión a la base de datos"}), 500
-    
     try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM carrera")
-        resultados = cursor.fetchall()
+        carreras = carrera_dao.obtener_todas()
         
-        carreras = []
-        for fila in resultados:
-            carrera = {
-                "idCarrera": fila[0],
-                "nombrecarrera": fila[1],
-                "duracion": fila[2]
-            }
-            carreras.append(carrera)
-        return jsonify(carreras), 200
-    except Error as e:
+        resultado = []
+        for carrera in carreras:
+            resultado.append({
+                "idCarrera": carrera.get_id_carrera(),
+                "nombrecarrera": carrera.get_nombre_carrera(),
+                "duracion": carrera.get_duracion()
+            })
+        
+        return jsonify(resultado), 200
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        if conn.is_connected():
-            cursor.close()
-            conn.close()
 
 @app.route('/carreras', methods=['POST'])
 def insertar_carrera():
@@ -89,27 +51,19 @@ def insertar_carrera():
     if not nombre or not isinstance(duracion, int) or duracion <= 0:
         return jsonify({"error": "Datos inválidos"}), 400
     
-    conn = conectar()
-    if not conn:
-        return jsonify({"error": "Error de conexión a la base de datos"}), 500
-    
     try:
-        cursor = conn.cursor()
-        sql = "INSERT INTO carrera (nombrecarrera, duracion) VALUES (%s, %s)"
-        cursor.execute(sql, (nombre, duracion))
-        conn.commit()
-        nuevo_id = cursor.lastrowid
+        carrera = Carrera()
+        carrera.set_nombre_carrera(nombre)
+        carrera.set_duracion(duracion)
+        
+        carrera_insertada = carrera_dao.insertar(carrera)
         
         return jsonify({
             "mensaje": f'Carrera "{nombre}" insertada correctamente',
-            "idCarrera": nuevo_id
+            "idCarrera": carrera_insertada.get_id_carrera()
         }), 201
-    except Error as e:
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        if conn.is_connected():
-            cursor.close()
-            conn.close()
 
 @app.route('/carreras/<int:idCarrera>', methods=['PUT'])
 def actualizar_carrera(idCarrera):
@@ -121,56 +75,35 @@ def actualizar_carrera(idCarrera):
     nuevo_nombre = datos['nombrecarrera']
     nueva_duracion = datos['duracion']
     
-    conn = conectar()
-    if not conn:
-        return jsonify({"error": "Error de conexión a la base de datos"}), 500
-    
     try:
-        cursor = conn.cursor()
+        carrera = Carrera()
+        carrera.set_id_carrera(idCarrera)
+        carrera.set_nombre_carrera(nuevo_nombre)
+        carrera.set_duracion(nueva_duracion)
         
-        cursor.execute("SELECT * FROM carrera WHERE idCarrera = %s", (idCarrera,))
-        if not cursor.fetchone():
+        actualizado = carrera_dao.actualizar(carrera)
+        
+        if actualizado:
+            return jsonify({"mensaje": f'Carrera con ID {idCarrera} actualizada correctamente'}), 200
+        else:
             return jsonify({"mensaje": f"No existe carrera con ID {idCarrera}"}), 404
-        
-        sql = "UPDATE carrera SET nombrecarrera = %s, duracion = %s WHERE idCarrera = %s"
-        cursor.execute(sql, (nuevo_nombre, nueva_duracion, idCarrera))
-        conn.commit()
-        
-        return jsonify({"mensaje": f'Carrera con ID {idCarrera} actualizada correctamente'}), 200
-    except Error as e:
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        if conn.is_connected():
-            cursor.close()
-            conn.close()
 
 @app.route('/carreras/<int:idCarrera>', methods=['DELETE'])
 def eliminar_carrera(idCarrera):
-    conn = conectar()
-    if not conn:
-        return jsonify({"error": "Error de conexión a la base de datos"}), 500
-    
     try:
-        cursor = conn.cursor()
+        eliminado = carrera_dao.eliminar(idCarrera)
         
-        cursor.execute("SELECT * FROM carrera WHERE idCarrera = %s", (idCarrera,))
-        if not cursor.fetchone():
+        if eliminado:
+            return jsonify({"mensaje": f'Carrera con ID {idCarrera} eliminada correctamente'}), 200
+        else:
             return jsonify({"mensaje": f"No existe carrera con ID {idCarrera}"}), 404
-        
-        sql = "DELETE FROM carrera WHERE idCarrera = %s"
-        cursor.execute(sql, (idCarrera,))
-        conn.commit()
-        
-        return jsonify({"mensaje": f'Carrera con ID {idCarrera} eliminada correctamente'}), 200
-    except Error as e:
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
-    finally:
-        if conn.is_connected():
-            cursor.close()
-            conn.close()
 
 def login_mysql():
-    global db_user, db_password, db_port
+    global carrera_dao
 
     print("\n" + "=" * 60)
     print("CONFIGURACIÓN DE CONEXIÓN A MySQL")
@@ -182,10 +115,11 @@ def login_mysql():
         db_port = input("Puerto MySQL: ").strip()
 
         print("\nVerificando conexión...\n")
-        conn = conectar()
-        if conn and conn.is_connected():
+        
+        carrera_dao = CarreraDAO(db_user, db_password, db_port)
+        
+        if carrera_dao.verificar_conexion():
             print("Conexión exitosa a MySQL.")
-            conn.close()
             break
         else:
             print("No se pudo conectar. Verifica los datos e inténtalo nuevamente.\n")
@@ -193,9 +127,8 @@ def login_mysql():
             if retry != "s":
                 print("\nSaliendo del programa...\n")
                 exit()
-      
 
 if __name__ == '__main__':
     login_mysql()
-    print("\nIniciando servidor Flask...\n")
+    print("\nIniciando servidor...\n")
     app.run(debug=True)
